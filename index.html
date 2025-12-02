@@ -3,85 +3,42 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LD2450 Architect v20.0</title>
+    <title>LD2450 Architect v21.0</title>
     <style>
         :root { --primary: #007bff; --bg: #f4f4f9; --panel: #ffffff; --border: #ccc; --success: #28a745; --danger: #dc3545; }
         body { font-family: -apple-system, system-ui, sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); color: #333; overflow: hidden; }
         
-        /* 1. SEITENLEISTEN (Fest, nicht schrumpfbar) */
-        .sidebar { 
-            width: 380px; 
-            flex-shrink: 0; 
-            display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.05); z-index: 10; 
-        }
-
-        .output-panel { 
-            width: 450px; 
-            flex-shrink: 0; 
-            display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); z-index: 10;
-        }
-
-        /* 2. HAUPTBEREICH (Der Fix für den abgeschnittenen Rand) */
-        .main { 
-            flex-grow: 1; 
-            display: flex; 
-            /* Zentriert den Inhalt */
-            justify-content: center; 
-            align-items: center; 
-            /* Scrollbalken erlauben, wenn Platz zu klein */
-            overflow: auto; 
-            /* Hintergrund Raster */
-            background-image: radial-gradient(#ccc 1px, transparent 1px); 
-            background-size: 20px 20px; 
-            position: relative;
-            /* WICHTIG: Das Padding sorgt für den "grünen Abstand" */
-            padding: 50px; 
-            box-sizing: border-box;
-        }
-
-        .canvas-wrapper { 
-            background: white; 
-            border: 2px solid #333; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
-            position: relative; 
-            /* WICHTIG: Verhindert, dass der Canvas gequetscht wird */
-            flex-shrink: 0; 
-        }
-
+        /* LAYOUT */
+        .sidebar { width: 380px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.05); z-index: 10; }
+        .output-panel { width: 450px; flex-shrink: 0; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); z-index: 10; }
+        .main { flex-grow: 1; display: flex; justify-content: center; align-items: center; overflow: auto; background-image: radial-gradient(#ccc 1px, transparent 1px); background-size: 20px 20px; position: relative; padding: 50px; box-sizing: border-box; }
+        .canvas-wrapper { background: white; border: 2px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.15); position: relative; flex-shrink: 0; }
         #canvas { display: block; cursor: crosshair; }
         
-        /* UI Styles */
+        /* UI */
         .header { padding: 15px; background: #fff; border-bottom: 1px solid var(--border); }
         .header h2 { margin: 0; font-size: 1.1rem; color: var(--primary); }
-        
         .section { padding: 15px; border-bottom: 1px solid var(--border); overflow-y: auto; flex-grow: 1;}
         .input-group { margin-bottom: 10px; }
         .input-group label { display: block; font-size: 0.75rem; font-weight: 700; margin-bottom: 4px; color: #555; }
         .input-group input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
-
         .live-box { background: #e8f5e9; border: 1px solid #c8e6c9; border-radius: 4px; padding: 10px; margin-bottom: 10px; }
         .status-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #999; margin-right: 5px; vertical-align: middle;}
         .status-dot.active { background: #28a745; box-shadow: 0 0 5px #28a745; }
-
         .zone-list { min-height: 100px; padding: 10px; background: #fafafa; border: 1px solid #eee; margin-bottom: 10px;}
         .zone-item { background: #fff; border: 1px solid #ddd; padding: 8px; margin-bottom: 5px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 8px;}
         .zone-item.active { background: #e3f2fd; border-color: var(--primary); }
         .zone-color { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
         .zone-name { flex-grow: 1; border: none; background: transparent; font-size: 0.9rem;}
-
         .actions { padding: 10px; border-top: 1px solid var(--border); display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #fff;}
         button { padding: 8px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: #e9ecef;}
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
         .btn-warning { background: #ffc107; color: #333; }
-
         .overlay-info { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px; border-radius: 4px; font-size: 0.75rem; border: 1px solid #ddd; pointer-events: none;}
-
         .output-section { flex: 1; display: flex; flex-direction: column; padding: 15px; border-bottom: 1px solid #eee; overflow: hidden;}
         .output-section h3 { margin: 0 0 10px 0; font-size: 0.9rem; display: flex; justify-content: space-between; }
         textarea { flex-grow: 1; font-family: monospace; font-size: 11px; padding: 8px; border: 1px solid #ccc; background: #f8f8f8; resize: none; white-space: pre; overflow: auto; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);}
-
-        /* MODAL */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
         .modal { background: white; width: 600px; padding: 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 10px; }
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
@@ -91,14 +48,14 @@
 
     <div class="sidebar">
         <div class="header">
-            <h2>LD2450 Architect v20.0</h2>
-            <div style="font-size: 0.75rem; color: #666;">Fixed Editor Layout</div>
+            <h2>LD2450 Architect v21.0</h2>
+            <div style="font-size: 0.75rem; color: #666;">Line-Click & Insert</div>
         </div>
 
         <div class="section">
             <div class="live-box">
                 <div class="input-group">
-                    <label>Home Assistant URL (Leer lassen für lokal)</label>
+                    <label>Home Assistant URL</label>
                     <input type="text" id="haUrl" placeholder="http://192.168.x.x:8123">
                 </div>
                 <div class="input-group">
@@ -116,7 +73,7 @@
                 <input type="text" id="devName" value="ld2450-new" oninput="updateAll()">
             </div>
             <div class="input-group">
-                <label>Friendly Name (Titel)</label>
+                <label>Friendly Name</label>
                 <input type="text" id="friendlyName" value="LD2450 Sensor" oninput="updateAll()">
             </div>
 
@@ -137,7 +94,10 @@
         <div class="canvas-wrapper">
             <canvas id="canvas" width="600" height="600"></canvas>
             <div class="overlay-info">
-                Links: Punkt/Verschieben | Rechts: Löschen<br>
+                <b>Klick auf Punkt:</b> Verschieben<br>
+                <b>Klick auf Linie:</b> Punkt einfügen<br>
+                <b>Rechtsklick Punkt:</b> Löschen<br>
+                <hr>
                 <span style="color:blue">● T1</span> <span style="color:red">● T2</span> <span style="color:green">● T3</span>
             </div>
         </div>
@@ -191,7 +151,18 @@
         canvas.addEventListener('contextmenu', e => e.preventDefault());
     }
 
-    // DRAWING
+    // --- MATH HELPERS ---
+    
+    // Distance from Point P to Line Segment VW
+    function distToSegment(p, v, w) {
+        const l2 = (v.x - w.x)**2 + (v.y - w.y)**2;
+        if (l2 === 0) return Math.hypot(p.x - v.x, p.y - v.y);
+        let t = ((p.x - v.x) * (w.x - v.x) + (p.y - v.y) * (w.y - v.y)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        return Math.hypot(p.x - (v.x + t * (w.x - v.x)), p.y - (v.y + t * (w.y - v.y)));
+    }
+
+    // --- DRAWING ---
     function draw() {
         ctx.clearRect(0, 0, W, H);
         drawGrid(); drawCoverage();
@@ -233,18 +204,43 @@
         ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, 5, 0, 2*Math.PI); ctx.fill();
     }
 
-    // INTERACTION
+    // --- INTERACTION ---
     function handleMouseDown(e) {
-        const {x, y} = getMousePos(e); const zone = config.zones[activeZoneIdx];
+        const {x, y} = getMousePos(e);
+        const zone = config.zones[activeZoneIdx];
+
+        // 1. CLICK ON POINT (Move/Delete)
         for(let i = zone.points.length - 1; i >= 0; i--) {
             const p = zone.points[i];
             if(Math.hypot(p.x - x, p.y - y) < SNAP_DIST) {
-                if(e.button === 2) { zone.points.splice(i, 1); draw(); updateAll(); return; }
+                if(e.button === 2) { // Right Click
+                    zone.points.splice(i, 1); draw(); updateAll(); return;
+                }
                 dragInfo = { active: true, pointIdx: i }; return;
             }
         }
+
+        // 2. CLICK ON LINE (Insert Point)
+        if(zone.points.length >= 2) {
+            for(let i = 0; i < zone.points.length; i++) {
+                const p1 = zone.points[i];
+                const p2 = zone.points[(i + 1) % zone.points.length]; // Wrap around
+                
+                // If close to line
+                if (distToSegment({x,y}, p1, p2) < SNAP_DIST) {
+                    // Insert new point at mouse position
+                    zone.points.splice(i + 1, 0, {x, y});
+                    // Immediately grab it
+                    dragInfo = { active: true, pointIdx: i + 1 };
+                    draw(); updateAll(); return;
+                }
+            }
+        }
+
+        // 3. CLICK EMPTY (Append)
         if(e.button === 0) { zone.points.push({x, y}); draw(); updateAll(); }
     }
+
     function handleMouseMove(e) {
         if(dragInfo.active) {
             const {x, y} = getMousePos(e); const zone = config.zones[activeZoneIdx];
@@ -331,7 +327,7 @@
     }
     function pxToM(px, py) { return { x: ((px - SENSOR_X) / METER_TO_PX).toFixed(2), y: ((SENSOR_Y - py) / METER_TO_PX).toFixed(2) }; }
 
-    // FIRMWARE GEN - UPDATED URL & DYNAMIC SSID
+    // FIRMWARE GEN
     function generateFirmware() {
         let yaml = `esphome:\n  name: "${config.name}"\n  friendly_name: "${config.friendly}"\n\nesp8266:\n  board: d1_mini\n\n# Enable logging\nlogger:\n  baud_rate: 0\n\n# Enable Home Assistant API\napi:\n  encryption:\n    key: !secret api_key\n\nota:\n  - platform: esphome\n    password: !secret ota_password\n\nwifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n  # Enable fallback hotspot (captive portal) in case wifi connection fails\n  ap:\n    ssid: "${config.name}-Fail"\n    password: !secret ap_wifi_password\n\ncaptive_portal:\n\nexternal_components:\n- source: github://kiam001/ESPHome-HLK-LD2450\n\nuart:\n  id: uart_bus\n  rx_pin: \n    number: GPIO3\n    mode:\n      input: true\n      pullup: true\n  tx_pin: \n    number: GPIO1\n    mode:\n      input: true\n      pullup: true\n  baud_rate: 256000\n  parity: NONE\n  stop_bits: 1\n  data_bits: 8\n\nLD2450:\n  uart_id: uart_bus\n  flip_x_axis: false\n  fast_off_detection: false\n  max_detection_tilt_angle:\n    name: "Max Tilt Angle"\n    initial_value: 90°\n  min_detection_tilt_angle:\n    name: "Min Tilt Angle"\n    initial_value: -90°\n  max_detection_distance:\n    name: "Max Distance"\n    initial_value: 6m\n  \n  restart_button:\n    name: "Restart Sensor"\n  factory_reset_button:\n    name: "Factory Reset Sensor"\n\n  tracking_mode_switch:\n    name: "Multiple Target Tracking"\n  bluetooth_switch:\n    name: "Sensor Bluetooth"\n\n  baud_rate_select:\n    name: "Sensor Baud Rate"\n\n  occupancy:\n    name: Occupancy\n  target_count:\n    name: Target Count\n\n  targets:\n    - target:\n        name: "T1"\n        id: t1\n        debug: true\n        x_position:\n            id: t1_xpos\n            name: t1_xpos\n        y_position:\n            id: t1_ypos\n            name: t1_ypos\n        speed:\n            id: t1_speed\n            name: t1_speed\n        distance_resolution:\n            id: t1_res\n            name: t1_res\n        angle:\n            id: t1_angle\n            name: t1_angle\n        distance:\n            id: t1_distance\n            name: t1_distance\n    - target:\n        id: t2\n        x_position:\n            id: t2_xpos\n            name: t2_xpos\n        y_position:\n            id: t2_ypos\n            name: t2_ypos\n        speed:\n            id: t2_speed\n            name: t2_speed\n        distance_resolution:\n            id: t2_res\n            name: t2_res\n        angle:\n            id: t2_angle\n            name: t2_angle\n        distance:\n            id: t2_distance\n            name: t2_distance\n    - target:\n        id: t3\n        x_position:\n            id: t3_xpos\n            name: t3_xpos\n        y_position:\n            id: t3_ypos\n            name: t3_ypos\n        speed:\n            id: t3_speed\n            name: t3_speed\n        distance_resolution:\n            id: t3_res\n            name: t3_res\n        angle:\n            id: t3_angle\n            name: t3_angle\n        distance:\n            id: t3_distance\n            name: t3_distance\n  zones:\n`;
         config.zones.forEach((zone) => {
@@ -344,7 +340,7 @@
         return yaml;
     }
 
-    // CARD GEN (FIXED MARGINS)
+    // CARD GEN
     function generateCard() {
         const dev = config.name.replace(/-/g, '_');
         let yaml = `type: custom:plotly-graph

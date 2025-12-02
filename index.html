@@ -3,20 +3,54 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LD2450 Architect v18.0</title>
+    <title>LD2450 Architect v20.0</title>
     <style>
         :root { --primary: #007bff; --bg: #f4f4f9; --panel: #ffffff; --border: #ccc; --success: #28a745; --danger: #dc3545; }
         body { font-family: -apple-system, system-ui, sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); color: #333; overflow: hidden; }
         
-        /* Layout Optimierung: Sidebar fest, Output flexibel breit */
-        .sidebar { width: 380px; min-width: 380px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.05); z-index: 2; }
-        
-        /* Main Canvas Area */
-        .main { flex-grow: 1; display: flex; justify-content: center; align-items: center; background-image: radial-gradient(#ccc 1px, transparent 1px); background-size: 20px 20px; overflow: auto; min-width: 620px; }
-        
-        /* Output Panel: Jetzt breiter und responsive */
-        .output-panel { width: 35%; min-width: 450px; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); }
+        /* 1. SEITENLEISTEN (Fest, nicht schrumpfbar) */
+        .sidebar { 
+            width: 380px; 
+            flex-shrink: 0; 
+            display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.05); z-index: 10; 
+        }
 
+        .output-panel { 
+            width: 450px; 
+            flex-shrink: 0; 
+            display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); z-index: 10;
+        }
+
+        /* 2. HAUPTBEREICH (Der Fix für den abgeschnittenen Rand) */
+        .main { 
+            flex-grow: 1; 
+            display: flex; 
+            /* Zentriert den Inhalt */
+            justify-content: center; 
+            align-items: center; 
+            /* Scrollbalken erlauben, wenn Platz zu klein */
+            overflow: auto; 
+            /* Hintergrund Raster */
+            background-image: radial-gradient(#ccc 1px, transparent 1px); 
+            background-size: 20px 20px; 
+            position: relative;
+            /* WICHTIG: Das Padding sorgt für den "grünen Abstand" */
+            padding: 50px; 
+            box-sizing: border-box;
+        }
+
+        .canvas-wrapper { 
+            background: white; 
+            border: 2px solid #333; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
+            position: relative; 
+            /* WICHTIG: Verhindert, dass der Canvas gequetscht wird */
+            flex-shrink: 0; 
+        }
+
+        #canvas { display: block; cursor: crosshair; }
+        
+        /* UI Styles */
         .header { padding: 15px; background: #fff; border-bottom: 1px solid var(--border); }
         .header h2 { margin: 0; font-size: 1.1rem; color: var(--primary); }
         
@@ -41,29 +75,11 @@
         .btn-success { background: var(--success); color: white; }
         .btn-warning { background: #ffc107; color: #333; }
 
-        .canvas-wrapper { background: white; border: 2px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.15); position: relative; }
-        #canvas { display: block; cursor: crosshair; }
         .overlay-info { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.9); padding: 5px; border-radius: 4px; font-size: 0.75rem; border: 1px solid #ddd; pointer-events: none;}
 
         .output-section { flex: 1; display: flex; flex-direction: column; padding: 15px; border-bottom: 1px solid #eee; overflow: hidden;}
-        .output-section h3 { margin: 0 0 10px 0; font-size: 0.9rem; display: flex; justify-content: space-between; align-items: center;}
-        
-        /* Textarea Optimierung */
-        textarea { 
-            flex-grow: 1; 
-            width: 100%;
-            font-family: 'Consolas', 'Monaco', monospace; 
-            font-size: 11px; 
-            padding: 12px; 
-            border: 1px solid #bbb; 
-            background: #fafafa; 
-            resize: none; 
-            white-space: pre; 
-            overflow: auto;
-            box-sizing: border-box;
-            border-radius: 4px;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
-        }
+        .output-section h3 { margin: 0 0 10px 0; font-size: 0.9rem; display: flex; justify-content: space-between; }
+        textarea { flex-grow: 1; font-family: monospace; font-size: 11px; padding: 8px; border: 1px solid #ccc; background: #f8f8f8; resize: none; white-space: pre; overflow: auto; box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);}
 
         /* MODAL */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
@@ -75,15 +91,15 @@
 
     <div class="sidebar">
         <div class="header">
-            <h2>LD2450 Architect v18.0</h2>
-            <div style="font-size: 0.75rem; color: #666;">Repo Update + Layout Fix</div>
+            <h2>LD2450 Architect v20.0</h2>
+            <div style="font-size: 0.75rem; color: #666;">Fixed Editor Layout</div>
         </div>
 
         <div class="section">
             <div class="live-box">
                 <div class="input-group">
-                    <label>Home Assistant URL (Leer lassen für lokal/www)</label>
-                    <input type="text" id="haUrl" placeholder="http://192.168.x.x:8123 (Optional)">
+                    <label>Home Assistant URL (Leer lassen für lokal)</label>
+                    <input type="text" id="haUrl" placeholder="http://192.168.x.x:8123">
                 </div>
                 <div class="input-group">
                     <label>Langzeit-Zugangstoken</label>
@@ -110,8 +126,7 @@
         <div class="actions">
             <button class="btn-primary" onclick="addZone()">+ Neue Zone</button>
             <button onclick="clearActiveZone()">Leeren</button>
-            
-            <button class="btn-warning" onclick="openYamlModal()" title="YAML Text importieren">📝 YAML Import</button>
+            <button class="btn-warning" onclick="openYamlModal()">📝 Import</button>
             <button onclick="exportConfig()">💾 Speichern</button>
             <button onclick="document.getElementById('fileInput').click()">📂 Laden</button>
         </div>
@@ -122,7 +137,7 @@
         <div class="canvas-wrapper">
             <canvas id="canvas" width="600" height="600"></canvas>
             <div class="overlay-info">
-                Links: Punkt/Move | Rechts: Löschen<br>
+                Links: Punkt/Verschieben | Rechts: Löschen<br>
                 <span style="color:blue">● T1</span> <span style="color:red">● T2</span> <span style="color:green">● T3</span>
             </div>
         </div>
@@ -329,7 +344,7 @@
         return yaml;
     }
 
-    // CARD GEN
+    // CARD GEN (FIXED MARGINS)
     function generateCard() {
         const dev = config.name.replace(/-/g, '_');
         let yaml = `type: custom:plotly-graph

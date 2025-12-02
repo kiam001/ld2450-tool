@@ -3,12 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LD2450 Architect v14.0</title>
+    <title>LD2450 Architect v17.0</title>
     <style>
-        :root { --primary: #007bff; --bg: #f4f4f9; --panel: #ffffff; --border: #ccc; --success: #28a745; }
+        :root { --primary: #007bff; --bg: #f4f4f9; --panel: #ffffff; --border: #ccc; --success: #28a745; --danger: #dc3545; }
         body { font-family: -apple-system, system-ui, sans-serif; display: flex; height: 100vh; margin: 0; background: var(--bg); color: #333; overflow: hidden; }
         
-        .sidebar { width: 400px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.05); }
+        /* Layout */
+        .sidebar { width: 400px; display: flex; flex-direction: column; background: var(--panel); border-right: 1px solid var(--border); box-shadow: 2px 0 10px rgba(0,0,0,0.05); z-index: 2; }
         .main { flex-grow: 1; display: flex; justify-content: center; align-items: center; background-image: radial-gradient(#ccc 1px, transparent 1px); background-size: 20px 20px; }
         .output-panel { width: 450px; display: flex; flex-direction: column; background: var(--panel); border-left: 1px solid var(--border); }
 
@@ -34,6 +35,7 @@
         button { padding: 8px; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; font-size: 0.85rem; background: #e9ecef;}
         .btn-primary { background: var(--primary); color: white; }
         .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: #ffc107; color: #333; }
 
         .canvas-wrapper { background: white; border: 2px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.15); position: relative; }
         #canvas { display: block; cursor: crosshair; }
@@ -42,21 +44,26 @@
         .output-section { flex: 1; display: flex; flex-direction: column; padding: 10px; border-bottom: 1px solid #eee; overflow: hidden;}
         .output-section h3 { margin: 0 0 5px 0; font-size: 0.85rem; display: flex; justify-content: space-between; }
         textarea { flex-grow: 1; font-family: monospace; font-size: 11px; padding: 8px; border: 1px solid #ccc; background: #f8f8f8; resize: none; white-space: pre; overflow: auto;}
+
+        /* MODAL */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 100; justify-content: center; align-items: center; }
+        .modal { background: white; width: 600px; padding: 20px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap: 10px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
     </style>
 </head>
 <body>
 
     <div class="sidebar">
         <div class="header">
-            <h2>LD2450 Architect v14.0</h2>
-            <div style="font-size: 0.75rem; color: #666;">External URL Support</div>
+            <h2>LD2450 Architect v17.0</h2>
+            <div style="font-size: 0.75rem; color: #666;">Auto-SSID & Defaults</div>
         </div>
 
         <div class="section">
             <div class="live-box">
                 <div class="input-group">
-                    <label>Home Assistant URL (z.B. http://192.168.1.50:8123)</label>
-                    <input type="text" id="haUrl" placeholder="http://homeassistant.local:8123">
+                    <label>Home Assistant URL (Leer lassen für lokal/www)</label>
+                    <input type="text" id="haUrl" placeholder="http://192.168.x.x:8123 (Optional)">
                 </div>
                 <div class="input-group">
                     <label>Langzeit-Zugangstoken</label>
@@ -70,11 +77,11 @@
 
             <div class="input-group">
                 <label>ESPHome Gerätename</label>
-                <input type="text" id="devName" value="ld2450-zimmer" oninput="updateAll()">
+                <input type="text" id="devName" value="ld2450-new" oninput="updateAll()">
             </div>
             <div class="input-group">
                 <label>Friendly Name (Titel)</label>
-                <input type="text" id="friendlyName" value="LD2450 Zimmer" oninput="updateAll()">
+                <input type="text" id="friendlyName" value="LD2450 Sensor" oninput="updateAll()">
             </div>
 
             <div class="zone-list" id="zoneList"></div>
@@ -83,8 +90,10 @@
         <div class="actions">
             <button class="btn-primary" onclick="addZone()">+ Neue Zone</button>
             <button onclick="clearActiveZone()">Leeren</button>
-            <button onclick="document.getElementById('fileInput').click()">Laden</button>
-            <button onclick="exportConfig()">Speichern</button>
+            
+            <button class="btn-warning" onclick="openYamlModal()" title="YAML Text importieren">📝 YAML Import</button>
+            <button onclick="exportConfig()">💾 Speichern</button>
+            <button onclick="document.getElementById('fileInput').click()">📂 Laden</button>
         </div>
         <input type="file" id="fileInput" style="display: none" accept=".json" onchange="importConfig(this)">
     </div>
@@ -110,53 +119,51 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="yamlModal">
+        <div class="modal">
+            <h3>YAML Zonen Importieren</h3>
+            <div style="font-size: 0.8rem; color: #666;">Kopiere hier deinen <code>zones:</code> Block hinein.</div>
+            <textarea id="yamlInput" style="height:300px; border:1px solid #333; font-family:monospace;" placeholder="zones: ..."></textarea>
+            <div class="modal-actions">
+                <button onclick="closeYamlModal()">Abbrechen</button>
+                <button class="btn-success" onclick="processYaml()">Importieren</button>
+            </div>
+        </div>
+    </div>
+
 <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    
-    // Config
     const W = 600, H = 600;
     const SENSOR_X = 300, SENSOR_Y = 600;
-    const METER_TO_PX = 100; 
-    const SNAP_DIST = 15;
+    const METER_TO_PX = 100; const SNAP_DIST = 15;
 
-    // State
-    let config = {
-        name: "ld2450-zimmer",
-        friendly: "LD2450 Zimmer",
-        zones: [ { id: 1, name: "Zone 1", color: "#007bff", points: [] } ]
-    };
-    
+    // DEFAULT CONFIG UPDATED
+    let config = { name: "ld2450-new", friendly: "LD2450 Sensor", zones: [ { id: 1, name: "Zone 1", color: "#007bff", points: [] } ] };
     let activeZoneIdx = 0;
     let dragInfo = { active: false, pointIdx: -1 };
     let liveTargets = { t1: {x:0,y:0,a:false}, t2: {x:0,y:0,a:false}, t3: {x:0,y:0,a:false} };
     let liveInterval = null;
-
-    // Coverage Polygon
     const covX = [0, 520, 450, 400, 300, 200, 100, 0, -100, -200, -300, -400, -450, -520, 0];
     const covY = [0, 300, 396, 447, 519, 565, 591, 600, 591, 565, 519, 447, 396, 300, 0];
 
     function init() {
         if(localStorage.getItem('ha_token')) document.getElementById('haToken').value = localStorage.getItem('ha_token');
         if(localStorage.getItem('ha_url')) document.getElementById('haUrl').value = localStorage.getItem('ha_url');
-        
         renderUI(); draw(); updateAll();
-        
         canvas.addEventListener('mousedown', handleMouseDown);
         canvas.addEventListener('mousemove', handleMouseMove);
         canvas.addEventListener('mouseup', handleMouseUp);
         canvas.addEventListener('contextmenu', e => e.preventDefault());
     }
 
-    // --- DRAWING ---
+    // DRAWING
     function draw() {
         ctx.clearRect(0, 0, W, H);
-        drawGrid();
-        drawCoverage();
+        drawGrid(); drawCoverage();
         config.zones.forEach((zone, idx) => { drawPoly(zone, idx === activeZoneIdx); });
         drawLiveTargets();
     }
-
     function drawGrid() {
         ctx.strokeStyle = '#f8f8f8'; ctx.lineWidth = 1;
         for(let x=0; x<=W; x+=50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
@@ -165,56 +172,36 @@
         ctx.beginPath(); ctx.moveTo(SENSOR_X, 0); ctx.lineTo(SENSOR_X, H); ctx.stroke();
         ctx.fillStyle = '#333'; ctx.beginPath(); ctx.arc(SENSOR_X, SENSOR_Y, 6, 0, Math.PI*2); ctx.fill();
     }
-
     function drawCoverage() {
-        ctx.beginPath();
-        for(let i=0; i<covX.length; i++) {
-            let px = covX[i] + SENSOR_X;
-            let py = SENSOR_Y - covY[i];
-            if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fillStyle = "rgba(168, 216, 234, 0.2)"; ctx.fill();
-        ctx.strokeStyle = "rgba(168, 216, 234, 0.6)"; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
+        ctx.beginPath(); for(let i=0; i<covX.length; i++) { let px = covX[i] + SENSOR_X; let py = SENSOR_Y - covY[i]; if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
+        ctx.closePath(); ctx.fillStyle = "rgba(168, 216, 234, 0.2)"; ctx.fill(); ctx.strokeStyle = "rgba(168, 216, 234, 0.6)"; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
-
     function drawPoly(zone, isActive) {
         if(zone.points.length === 0) return;
-        ctx.beginPath();
-        ctx.moveTo(zone.points[0].x, zone.points[0].y);
+        ctx.beginPath(); ctx.moveTo(zone.points[0].x, zone.points[0].y);
         for(let i=1; i<zone.points.length; i++) ctx.lineTo(zone.points[i].x, zone.points[i].y);
         ctx.closePath();
         ctx.fillStyle = isActive ? hexToRgba(zone.color, 0.2) : 'rgba(200,200,200,0.1)';
-        ctx.strokeStyle = isActive ? zone.color : '#ccc';
-        ctx.lineWidth = isActive ? 2 : 1;
-        ctx.fill(); ctx.stroke();
-        if(isActive) {
-            ctx.fillStyle = zone.color;
-            zone.points.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill(); });
-        }
+        ctx.strokeStyle = isActive ? zone.color : '#ccc'; ctx.lineWidth = isActive ? 2 : 1; ctx.fill(); ctx.stroke();
+        if(isActive) { ctx.fillStyle = zone.color; zone.points.forEach(p => { ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI*2); ctx.fill(); }); }
     }
-
     function drawLiveTargets() {
         if (liveTargets.t1.a) drawTarget(liveTargets.t1, 'blue', 'T1');
         if (liveTargets.t2.a) drawTarget(liveTargets.t2, 'red', 'T2');
         if (liveTargets.t3.a) drawTarget(liveTargets.t3, 'green', 'T3');
     }
-
     function drawTarget(t, color, label) {
-        let px = (t.x * 100) + SENSOR_X;
-        let py = SENSOR_Y - (t.y * 100);
+        let px = (t.x * 100) + SENSOR_X; let py = SENSOR_Y - (t.y * 100);
         if (!Number.isFinite(px) || !Number.isFinite(py)) return;
         let grad = ctx.createRadialGradient(px, py, 2, px, py, 15);
         grad.addColorStop(0, color); grad.addColorStop(1, "rgba(255,255,255,0)");
         ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(px, py, 15, 0, 2*Math.PI); ctx.fill();
         ctx.fillStyle = color; ctx.beginPath(); ctx.arc(px, py, 5, 0, 2*Math.PI); ctx.fill();
-        ctx.fillStyle = '#333'; ctx.font = "bold 11px sans-serif"; ctx.fillText(label, px+8, py+3);
     }
 
-    // --- INTERACTION ---
+    // INTERACTION
     function handleMouseDown(e) {
-        const {x, y} = getMousePos(e);
-        const zone = config.zones[activeZoneIdx];
+        const {x, y} = getMousePos(e); const zone = config.zones[activeZoneIdx];
         for(let i = zone.points.length - 1; i >= 0; i--) {
             const p = zone.points[i];
             if(Math.hypot(p.x - x, p.y - y) < SNAP_DIST) {
@@ -226,34 +213,29 @@
     }
     function handleMouseMove(e) {
         if(dragInfo.active) {
-            const {x, y} = getMousePos(e);
-            const zone = config.zones[activeZoneIdx];
+            const {x, y} = getMousePos(e); const zone = config.zones[activeZoneIdx];
             let safeX = Math.max(0, Math.min(W, x)); let safeY = Math.max(0, Math.min(H, y));
             zone.points[dragInfo.pointIdx] = {x: safeX, y: safeY}; draw();
         }
     }
     function handleMouseUp() { if(dragInfo.active) { dragInfo.active = false; updateAll(); } }
-    function getMousePos(evt) {
-        const rect = canvas.getBoundingClientRect();
-        return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
-    }
+    function getMousePos(evt) { const r = canvas.getBoundingClientRect(); return { x: evt.clientX - r.left, y: evt.clientY - r.top }; }
 
-    // --- LIVE DATA ---
+    // LIVE LOGIC
     async function startLive() {
         const urlRaw = document.getElementById('haUrl').value.trim();
         const token = document.getElementById('haToken').value.trim();
         const rawName = document.getElementById('devName').value.trim();
         
-        if (!token || !urlRaw) { alert("URL und Token fehlen!"); return; }
+        if (!token) { alert("Token fehlt!"); return; }
         
-        // Remove trailing slash
-        const baseUrl = urlRaw.replace(/\/$/, "");
+        let baseUrl = "";
+        if(urlRaw) baseUrl = urlRaw.replace(/\/$/, ""); 
         
         localStorage.setItem('ha_token', token);
         localStorage.setItem('ha_url', baseUrl);
         
         const sensorId = rawName.replace(/-/g, '_').toLowerCase();
-
         document.getElementById('debugMsg').innerText = "Verbinde...";
         if (liveInterval) clearInterval(liveInterval);
 
@@ -268,258 +250,69 @@
     }
 
     async function fetchStates(baseUrl, token, sensorId) {
-        try {
-            const response = await fetch(`${baseUrl}/api/states`, {
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            });
-            if (!response.ok) throw new Error("API Fehler (CORS?)");
-            const data = await response.json();
-            
-            const t1_x = data.find(e => e.entity_id === `sensor.${sensorId}_t1_t1_xpos`);
-            const t1_y = data.find(e => e.entity_id === `sensor.${sensorId}_t1_t1_ypos`);
-            const t2_x = data.find(e => e.entity_id === `sensor.${sensorId}_target_2_t2_xpos`);
-            const t2_y = data.find(e => e.entity_id === `sensor.${sensorId}_target_2_t2_ypos`);
-            const t3_x = data.find(e => e.entity_id === `sensor.${sensorId}_target_3_t3_xpos`);
-            const t3_y = data.find(e => e.entity_id === `sensor.${sensorId}_target_3_t3_ypos`);
+        const url = baseUrl ? `${baseUrl}/api/states` : `/api/states`;
+        const response = await fetch(url, { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+        if (!response.ok) throw new Error("API Fehler");
+        const data = await response.json();
+        
+        const t1_x = data.find(e => e.entity_id === `sensor.${sensorId}_t1_t1_xpos`);
+        const t1_y = data.find(e => e.entity_id === `sensor.${sensorId}_t1_t1_ypos`);
+        const t2_x = data.find(e => e.entity_id === `sensor.${sensorId}_target_2_t2_xpos`);
+        const t2_y = data.find(e => e.entity_id === `sensor.${sensorId}_target_2_t2_ypos`);
+        const t3_x = data.find(e => e.entity_id === `sensor.${sensorId}_target_3_t3_xpos`);
+        const t3_y = data.find(e => e.entity_id === `sensor.${sensorId}_target_3_t3_ypos`);
 
-            updateTargetData('t1', t1_x, t1_y);
-            updateTargetData('t2', t2_x, t2_y);
-            updateTargetData('t3', t3_x, t3_y);
-            draw();
-        } catch(e) {
-            throw e;
-        }
+        updateTargetData('t1', t1_x, t1_y); updateTargetData('t2', t2_x, t2_y); updateTargetData('t3', t3_x, t3_y);
+        draw();
     }
 
     function updateTargetData(key, sx, sy) {
         if (sx && sy && sx.state !== 'unavailable' && sx.state !== 'unknown') {
             let valX = parseFloat(sx.state); let valY = parseFloat(sy.state);
-            if (!isNaN(valX) && !isNaN(valY)) {
-                liveTargets[key].x = valX; liveTargets[key].y = valY; liveTargets[key].a = true; return;
-            }
+            if (!isNaN(valX) && !isNaN(valY)) { liveTargets[key].x = valX; liveTargets[key].y = valY; liveTargets[key].a = true; return; }
         }
         liveTargets[key].a = false;
     }
 
-    // --- UI & GENERATION ---
+    // UI & GENERATION
     function renderUI() {
-        const list = document.getElementById('zoneList');
-        list.innerHTML = "";
+        const list = document.getElementById('zoneList'); list.innerHTML = "";
         config.zones.forEach((zone, idx) => {
             const el = document.createElement('div');
             el.className = `zone-item ${idx === activeZoneIdx ? 'active' : ''}`;
             el.onclick = () => { activeZoneIdx = idx; renderUI(); draw(); };
-            el.innerHTML = `
-                <div class="zone-color" style="background:${zone.color}"></div>
-                <input type="text" class="zone-name" value="${zone.name}" onchange="renameZone(${idx}, this.value)" onclick="event.stopPropagation()">
-                <button onclick="deleteZone(${idx}); event.stopPropagation()" style="color:red; background:none; border:none; cursor:pointer;">X</button>
-            `;
+            el.innerHTML = `<div class="zone-color" style="background:${zone.color}"></div><input type="text" class="zone-name" value="${zone.name}" onchange="renameZone(${idx}, this.value)" onclick="event.stopPropagation()"><button onclick="deleteZone(${idx}); event.stopPropagation()" style="color:red; background:none; border:none; cursor:pointer;">X</button>`;
             list.appendChild(el);
         });
         document.getElementById('devName').value = config.name;
         document.getElementById('friendlyName').value = config.friendly;
     }
-
-    function addZone() {
-        const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1'];
-        config.zones.push({ id: Date.now(), name: `Zone${config.zones.length + 1}`, color: colors[config.zones.length % colors.length], points: [] });
-        activeZoneIdx = config.zones.length - 1; renderUI(); draw();
-    }
-    function deleteZone(idx) { if(confirm("Löschen?")) { config.zones.splice(idx, 1); if(config.zones.length === 0) addZone(); activeZoneIdx = 0; renderUI(); draw(); updateAll(); } }
-    function renameZone(idx, val) { config.zones[idx].name = val; updateAll(); }
+    function addZone() { const c = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1']; config.zones.push({ id: Date.now(), name: `Zone${config.zones.length+1}`, color: c[config.zones.length%c.length], points: [] }); activeZoneIdx = config.zones.length-1; renderUI(); draw(); }
+    function deleteZone(i) { if(confirm("Löschen?")) { config.zones.splice(i, 1); if(config.zones.length === 0) addZone(); activeZoneIdx=0; renderUI(); draw(); updateAll(); } }
+    function renameZone(i, v) { config.zones[i].name = v; updateAll(); }
     function clearActiveZone() { config.zones[activeZoneIdx].points = []; draw(); updateAll(); }
     function updateAll() {
-        config.name = document.getElementById('devName').value;
-        config.friendly = document.getElementById('friendlyName').value;
-        document.getElementById('outFirmware').value = generateFirmware();
-        document.getElementById('outCard').value = generateCard();
+        config.name = document.getElementById('devName').value; config.friendly = document.getElementById('friendlyName').value;
+        document.getElementById('outFirmware').value = generateFirmware(); document.getElementById('outCard').value = generateCard();
     }
-
     function pxToM(px, py) { return { x: ((px - SENSOR_X) / METER_TO_PX).toFixed(2), y: ((SENSOR_Y - py) / METER_TO_PX).toFixed(2) }; }
 
-    // --- FULL FIRMWARE GENERATOR ---
+    // FIRMWARE GEN - DYNAMIC SSID FIX
     function generateFirmware() {
-        let yaml = `esphome:
-  name: "${config.name}"
-  friendly_name: "${config.friendly}"
-
-esp8266:
-  board: d1_mini
-
-# Enable logging
-logger:
-  baud_rate: 0
-
-# Enable Home Assistant API
-api:
-  encryption:
-    key: !secret api_key
-
-ota:
-  - platform: esphome
-    password: !secret ota_password
-
-wifi:
-  ssid: !secret wifi_ssid
-  password: !secret wifi_password
-
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
-  ap:
-    ssid: "${config.friendly.replace(/ /g,'-')}-Fail"
-    password: !secret ap_wifi_password
-
-captive_portal:
-
-external_components:
-- source: github://ShaunPCcom/ESPHome-HLK-LD2450
-
-uart:
-  id: uart_bus
-  rx_pin: 
-    number: GPIO3
-    mode:
-      input: true
-      pullup: true
-  tx_pin: 
-    number: GPIO1
-    mode:
-      input: true
-      pullup: true
-  baud_rate: 256000
-  parity: NONE
-  stop_bits: 1
-  data_bits: 8
-
-LD2450:
-  uart_id: uart_bus
-  flip_x_axis: false
-  fast_off_detection: false
-  max_detection_tilt_angle:
-    name: "Max Tilt Angle"
-    initial_value: 90°
-  min_detection_tilt_angle:
-    name: "Min Tilt Angle"
-    initial_value: -90°
-  max_detection_distance:
-    name: "Max Distance"
-    initial_value: 6m
-  
-  restart_button:
-    name: "Restart Sensor"
-  factory_reset_button:
-    name: "Factory Reset Sensor"
-
-  tracking_mode_switch:
-    name: "Multiple Target Tracking"
-  bluetooth_switch:
-    name: "Sensor Bluetooth"
-
-  baud_rate_select:
-    name: "Sensor Baud Rate"
-
-  occupancy:
-    name: Occupancy
-  target_count:
-    name: Target Count
-
-  targets:
-    - target:
-        name: "T1"
-        id: t1
-        debug: true
-        x_position:
-            id: t1_xpos
-            name: t1_xpos
-        y_position:
-            id: t1_ypos
-            name: t1_ypos
-        speed:
-            id: t1_speed
-            name: t1_speed
-        distance_resolution:
-            id: t1_res
-            name: t1_res
-        angle:
-            id: t1_angle
-            name: t1_angle
-        distance:
-            id: t1_distance
-            name: t1_distance
-    - target:
-        id: t2
-        x_position:
-            id: t2_xpos
-            name: t2_xpos
-        y_position:
-            id: t2_ypos
-            name: t2_ypos
-        speed:
-            id: t2_speed
-            name: t2_speed
-        distance_resolution:
-            id: t2_res
-            name: t2_res
-        angle:
-            id: t2_angle
-            name: t2_angle
-        distance:
-            id: t2_distance
-            name: t2_distance
-    - target:
-        id: t3
-        x_position:
-            id: t3_xpos
-            name: t3_xpos
-        y_position:
-            id: t3_ypos
-            name: t3_ypos
-        speed:
-            id: t3_speed
-            name: t3_speed
-        distance_resolution:
-            id: t3_res
-            name: t3_res
-        angle:
-            id: t3_angle
-            name: t3_angle
-        distance:
-            id: t3_distance
-            name: t3_distance
-  zones:
-`;
+        let yaml = `esphome:\n  name: "${config.name}"\n  friendly_name: "${config.friendly}"\n\nesp8266:\n  board: d1_mini\n\n# Enable logging\nlogger:\n  baud_rate: 0\n\n# Enable Home Assistant API\napi:\n  encryption:\n    key: !secret api_key\n\nota:\n  - platform: esphome\n    password: !secret ota_password\n\nwifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n  # Enable fallback hotspot (captive portal) in case wifi connection fails\n  ap:\n    ssid: "${config.name}-Fail"\n    password: !secret ap_wifi_password\n\ncaptive_portal:\n\nexternal_components:\n- source: github://ShaunPCcom/ESPHome-HLK-LD2450\n\nuart:\n  id: uart_bus\n  rx_pin: \n    number: GPIO3\n    mode:\n      input: true\n      pullup: true\n  tx_pin: \n    number: GPIO1\n    mode:\n      input: true\n      pullup: true\n  baud_rate: 256000\n  parity: NONE\n  stop_bits: 1\n  data_bits: 8\n\nLD2450:\n  uart_id: uart_bus\n  flip_x_axis: false\n  fast_off_detection: false\n  max_detection_tilt_angle:\n    name: "Max Tilt Angle"\n    initial_value: 90°\n  min_detection_tilt_angle:\n    name: "Min Tilt Angle"\n    initial_value: -90°\n  max_detection_distance:\n    name: "Max Distance"\n    initial_value: 6m\n  \n  restart_button:\n    name: "Restart Sensor"\n  factory_reset_button:\n    name: "Factory Reset Sensor"\n\n  tracking_mode_switch:\n    name: "Multiple Target Tracking"\n  bluetooth_switch:\n    name: "Sensor Bluetooth"\n\n  baud_rate_select:\n    name: "Sensor Baud Rate"\n\n  occupancy:\n    name: Occupancy\n  target_count:\n    name: Target Count\n\n  targets:\n    - target:\n        name: "T1"\n        id: t1\n        debug: true\n        x_position:\n            id: t1_xpos\n            name: t1_xpos\n        y_position:\n            id: t1_ypos\n            name: t1_ypos\n        speed:\n            id: t1_speed\n            name: t1_speed\n        distance_resolution:\n            id: t1_res\n            name: t1_res\n        angle:\n            id: t1_angle\n            name: t1_angle\n        distance:\n            id: t1_distance\n            name: t1_distance\n    - target:\n        id: t2\n        x_position:\n            id: t2_xpos\n            name: t2_xpos\n        y_position:\n            id: t2_ypos\n            name: t2_ypos\n        speed:\n            id: t2_speed\n            name: t2_speed\n        distance_resolution:\n            id: t2_res\n            name: t2_res\n        angle:\n            id: t2_angle\n            name: t2_angle\n        distance:\n            id: t2_distance\n            name: t2_distance\n    - target:\n        id: t3\n        x_position:\n            id: t3_xpos\n            name: t3_xpos\n        y_position:\n            id: t3_ypos\n            name: t3_ypos\n        speed:\n            id: t3_speed\n            name: t3_speed\n        distance_resolution:\n            id: t3_res\n            name: t3_res\n        angle:\n            id: t3_angle\n            name: t3_angle\n        distance:\n            id: t3_distance\n            name: t3_distance\n  zones:\n`;
         config.zones.forEach((zone) => {
             if(zone.points.length < 3) return;
             const zId = zone.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-            
-            yaml += `    - zone:
-        name: "${zone.name}"
-        margin: 25cm
-        target_timeout: 5s
-        polygon:
-`;
-            zone.points.forEach(p => {
-                const m = pxToM(p.x, p.y);
-                yaml += `          - point:
-              x: ${m.x}m
-              y: ${m.y}m
-`;
-            });
-            
-            yaml += `        occupancy:
-          id: ${zId}_occupancy
-          name: ${zId}_occupancy
-        target_count:
-          id: ${zId}_target_count
-          name: ${zId}_target_count
-
-`;
+            yaml += `    - zone:\n        name: "${zone.name}"\n        margin: 25cm\n        target_timeout: 5s\n        polygon:\n`;
+            zone.points.forEach(p => { const m = pxToM(p.x, p.y); yaml += `          - point:\n              x: ${m.x}m\n              y: ${m.y}m\n`; });
+            yaml += `        occupancy:\n          id: ${zId}_occupancy\n          name: ${zId}_occupancy\n        target_count:\n          id: ${zId}_target_count\n          name: ${zId}_target_count\n\n`;
         });
         return yaml;
     }
 
+    // CARD GEN
     function generateCard() {
         const dev = config.name.replace(/-/g, '_');
-        
         let yaml = `type: custom:plotly-graph
 title: ${config.friendly} Map
 refresh_interval: 1
@@ -556,55 +349,48 @@ entities:
             {n:"Target 2", c:"red",   x:`sensor.${dev}_target_2_t2_xpos`, y:`sensor.${dev}_target_2_t2_ypos`},
             {n:"Target 3", c:"green", x:`sensor.${dev}_target_3_t3_xpos`, y:`sensor.${dev}_target_3_t3_ypos`}
         ];
-
         targets.forEach(t => {
-            yaml += `  - entity: ""
-    name: ${t.n}
-    mode: markers
-    marker: { size: 18, color: ${t.c}, line: { color: white, width: 2 } }
-    x:
-      - >-
-        $ex parseFloat(hass.states['${t.x}']?.state || 0) * 100
-    y:
-      - >-
-        $ex parseFloat(hass.states['${t.y}']?.state || 0) * 100
-`;
+            yaml += `  - entity: ""\n    name: ${t.n}\n    mode: markers\n    marker: { size: 18, color: ${t.c}, line: { color: white, width: 2 } }\n    x:\n      - >-\n        $ex parseFloat(hass.states['${t.x}']?.state || 0) * 100\n    y:\n      - >-\n        $ex parseFloat(hass.states['${t.y}']?.state || 0) * 100\n`;
         });
-
         config.zones.forEach(zone => {
             if(zone.points.length < 3) return;
             const xArr = [], yArr = [];
-            zone.points.forEach(p => { 
-                const m = pxToM(p.x, p.y); 
-                xArr.push(Math.round(m.x * 100)); 
-                yArr.push(Math.round(m.y * 100)); 
-            });
+            zone.points.forEach(p => { const m = pxToM(p.x, p.y); xArr.push(Math.round(m.x * 100)); yArr.push(Math.round(m.y * 100)); });
             xArr.push(xArr[0]); yArr.push(yArr[0]);
-            
-            yaml += `  - entity: ""
-    name: "${zone.name}"
-    mode: lines
-    fill: toself
-    fillcolor: ${hexToRgba(zone.color, 0.1)}
-    line: { color: '${hexToRgba(zone.color, 0.4)}', width: 2 }
-    x: [${xArr.join(', ')}]
-    y: [${yArr.join(', ')}]
-`;
+            yaml += `  - entity: ""\n    name: "${zone.name}"\n    mode: lines\n    fill: toself\n    fillcolor: ${hexToRgba(zone.color, 0.1)}\n    line: { color: '${hexToRgba(zone.color, 0.4)}', width: 2 }\n    x: [${xArr.join(', ')}]\n    y: [${yArr.join(', ')}]\n`;
         });
-        
-        yaml += `  - entity: ""
-    name: Coverage
-    mode: lines
-    fill: tonexty
-    fillcolor: rgba(168, 216, 234, 0.1)
-    line: { color: 'rgba(0,0,0,0.1)', width: 1, dash: dot }
-    x: [0, 520, 450, 400, 300, 200, 100, 0, -100, -200, -300, -400, -450, -520, 0]
-    y: [0, 300, 396, 447, 519, 565, 591, 600, 591, 565, 519, 447, 396, 300, 0]
-raw_plotly_config: true
-`;
+        yaml += `  - entity: ""\n    name: Coverage\n    mode: lines\n    fill: tonexty\n    fillcolor: rgba(168, 216, 234, 0.1)\n    line: { color: 'rgba(0,0,0,0.1)', width: 1, dash: dot }\n    x: [0, 520, 450, 400, 300, 200, 100, 0, -100, -200, -300, -400, -450, -520, 0]\n    y: [0, 300, 396, 447, 519, 565, 591, 600, 591, 565, 519, 447, 396, 300, 0]\nraw_plotly_config: true\n`;
         return yaml;
     }
 
+    // YAML IMPORT
+    function openYamlModal() { document.getElementById('yamlModal').style.display = 'flex'; }
+    function closeYamlModal() { document.getElementById('yamlModal').style.display = 'none'; }
+    function processYaml() {
+        const text = document.getElementById('yamlInput').value;
+        const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1'];
+        const newZones = [];
+        try {
+            const rawZones = text.split(/- zone:/);
+            for (let i = 1; i < rawZones.length; i++) {
+                const block = rawZones[i];
+                const nameM = block.match(/name:\s*["']?([^"'\n]+)["']?/);
+                const name = nameM ? nameM[1].trim() : `Zone ${i}`;
+                const points = [];
+                const lines = block.split('\n');
+                let cx = null;
+                lines.forEach(l => {
+                    const xm = l.match(/x:\s*(-?[\d\.]+)/); const ym = l.match(/y:\s*(-?[\d\.]+)/);
+                    if(xm) cx = parseFloat(xm[1]);
+                    if(ym && cx !== null) { points.push({ x: Math.round((cx * 100) + SENSOR_X), y: Math.round(SENSOR_Y - (parseFloat(ym[1]) * 100)) }); cx = null; }
+                });
+                if(points.length > 0) newZones.push({ id: Date.now()+i, name: name, color: colors[newZones.length%colors.length], points: points });
+            }
+            if(newZones.length > 0) { config.zones = newZones; activeZoneIdx = 0; renderUI(); draw(); updateAll(); closeYamlModal(); } else alert("Keine Zonen gefunden.");
+        } catch(e) { alert("Fehler: " + e.message); }
+    }
+
+    // UTILS
     function exportConfig() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config)); a.download = config.name + ".json"; a.click(); }
     function importConfig(input) { const f = input.files[0]; if(!f) return; const r = new FileReader(); r.onload = e => { try { config = JSON.parse(e.target.result); activeZoneIdx = 0; renderUI(); draw(); updateAll(); } catch(err) { alert("Err: " + err); } }; r.readAsText(f); input.value = ''; }
     function copyToClip(id) { document.getElementById(id).select(); document.execCommand("copy"); }

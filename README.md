@@ -6,17 +6,17 @@ Wenn du das Tool auf GitHub Pages hostest, wird Home Assistant den Zugriff stand
 
 Du musst Home Assistant erlauben, Anfragen von deiner GitHub-Seite anzunehmen.
 
-    Öffne deine configuration.yaml in Home Assistant.
+Öffne deine configuration.yaml in Home Assistant.
+Füge folgenden Block hinzu (oder ergänze ihn, falls http: schon existiert):
 
-    Füge folgenden Block hinzu (oder ergänze ihn, falls http: schon existiert):
-
-YAML
-
+YAML:
+```
 http:
   cors_allowed_origins:
     - https://DEIN-GITHUB-NAME.github.io
+```
 
-    Starte Home Assistant neu.
+Starte Home Assistant neu.
 
 
     

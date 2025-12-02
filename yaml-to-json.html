@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LD2450 YAML -> JSON Converter</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #f4f4f9; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h2 { margin-top: 0; color: #007bff; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        
+        label { font-weight: bold; display: block; margin-bottom: 5px; }
+        textarea { width: 100%; height: 300px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; font-family: monospace; font-size: 12px; box-sizing: border-box; resize: vertical;}
+        
+        button { background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 4px; font-weight: bold; cursor: pointer; margin-top: 10px; font-size: 1rem;}
+        button:hover { background: #218838; }
+        button.secondary { background: #007bff; }
+        button.secondary:hover { background: #0056b3; }
+        
+        .info { background: #e9ecef; padding: 10px; border-radius: 4px; margin-bottom: 20px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🔄 LD2450 Converter</h2>
+    <div class="info">
+        <b>Anleitung:</b><br>
+        1. Kopiere deinen kompletten <code>zones:</code> Block aus der YAML links hinein.<br>
+        2. Klicke auf "Konvertieren".<br>
+        3. Lade die JSON-Datei herunter und importiere sie im <b>LD2450 Architect</b>.
+    </div>
+
+    <div class="grid">
+        <div>
+            <label>1. YAML Input (ESPHome)</label>
+            <textarea id="inputYaml" placeholder="zones:
+  - zone:
+      name: 'MeinZimmer'
+      polygon:
+        - point:
+            x: 2.48m
+            y: 2.25m
+..."></textarea>
+        </div>
+        <div>
+            <label>2. JSON Output (Für Architect)</label>
+            <textarea id="outputJson" readonly></textarea>
+        </div>
+    </div>
+
+    <div style="text-align: right;">
+        <button onclick="convert()">⚡ Konvertieren</button>
+        <button class="secondary" onclick="downloadJson()">💾 Download .json</button>
+    </div>
+</div>
+
+<script>
+    function convert() {
+        const yaml = document.getElementById('inputYaml').value;
+        const outBox = document.getElementById('outputJson');
+        
+        // Farben zyklisch vergeben
+        const colors = ['#007bff', '#28a745', '#dc3545', '#fd7e14', '#6f42c1', '#17a2b8', '#e83e8c'];
+        
+        try {
+            const zones = [];
+            
+            // 1. Zonenblöcke finden (Regex Hack für einfache YAML Struktur)
+            // Wir splitten am "- zone:" Marker
+            const rawZones = yaml.split(/- zone:/);
+            
+            // Der erste Teil ist meist Müll oder "zones:", also überspringen wir index 0 wenn er leer ist
+            for (let i = 1; i < rawZones.length; i++) {
+                const block = rawZones[i];
+                
+                // Name extrahieren
+                const nameMatch = block.match(/name:\s*["']?([^"'\n]+)["']?/);
+                const name = nameMatch ? nameMatch[1].trim() : `Zone ${i}`;
+                
+                // Punkte extrahieren
+                const points = [];
+                // Suche nach x: ... y: ... Blöcken
+                // Wir suchen nach allen Vorkommen von x: [ZAHL] und y: [ZAHL]
+                // Da YAML strict ist, gehen wir zeilenweise vor
+                
+                const lines = block.split('\n');
+                let currentX = null;
+                
+                lines.forEach(line => {
+                    const xMatch = line.match(/x:\s*(-?[\d\.]+)/);
+                    const yMatch = line.match(/y:\s*(-?[\d\.]+)/);
+                    
+                    if (xMatch) {
+                        currentX = parseFloat(xMatch[1]);
+                    }
+                    if (yMatch && currentX !== null) {
+                        const currentY = parseFloat(yMatch[1]);
+                        
+                        // Umrechnung: Meter -> Pixel
+                        // X: (Meter * 100) + 300
+                        // Y: 600 - (Meter * 100)
+                        
+                        points.push({
+                            x: Math.round((currentX * 100) + 300),
+                            y: Math.round(600 - (currentY * 100))
+                        });
+                        
+                        currentX = null; // Reset für nächsten Punkt
+                    }
+                });
+
+                if (points.length > 0) {
+                    zones.push({
+                        id: i, // Simple ID
+                        name: name,
+                        color: colors[(i-1) % colors.length],
+                        points: points
+                    });
+                }
+            }
+
+            // Basis Struktur erstellen
+            const result = {
+                name: "ld2450-imported",
+                friendly: "LD2450 Import",
+                zones: zones
+            };
+
+            outBox.value = JSON.stringify(result, null, 2);
+            
+        } catch (e) {
+            outBox.value = "Fehler beim Parsen:\n" + e.message;
+        }
+    }
+
+    function downloadJson() {
+        const content = document.getElementById('outputJson').value;
+        if (!content) { alert("Erst konvertieren!"); return; }
+        
+        const a = document.createElement('a');
+        a.href = "data:text/json;charset=utf-8," + encodeURIComponent(content);
+        a.download = "ld2450-import.json";
+        a.click();
+    }
+</script>
+
+</body>
+</html>

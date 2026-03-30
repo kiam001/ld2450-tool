@@ -179,7 +179,7 @@
     }
     function drawCoverage() {
         ctx.beginPath(); for(let i=0; i<covX.length; i++) { let px = covX[i] + SENSOR_X; let py = SENSOR_Y - covY[i]; if(i===0) ctx.moveTo(px, py); else ctx.lineTo(px, py); }
-        ctx.closePath(); ctx.fillStyle = "rgba(168, 216, 234, 0.2)"; ctx.fill(); ctx.setLineDash([5, 5]); ctx.strokeStyle = "rgba(168, 216, 234, 0.6)"; ctx.stroke(); ctx.setLineDash([]);
+        ctx.closePath(); ctx.fillStyle = "rgba(168, 216, 234, 0.2)"; ctx.fill(); ctx.strokeStyle = "rgba(168, 216, 234, 0.6)"; ctx.setLineDash([5, 5]); ctx.stroke(); ctx.setLineDash([]);
     }
     function drawPoly(zone, isActive) {
         if(zone.points.length === 0) return;
@@ -285,19 +285,24 @@
         if (!response.ok) throw new Error("API Fehler");
         const data = await response.json();
         
-        const t1_x = data.find(e => e.entity_id === `sensor.${sensorId}_t1_x_position`);
-        const t1_y = data.find(e => e.entity_id === `sensor.${sensorId}_t1_y_position`);
-        const t2_x = data.find(e => e.entity_id === `sensor.${sensorId}_target_2_x_position`);
-        const t2_y = data.find(e => e.entity_id === `sensor.${sensorId}_target_2_y_position`);
-        const t3_x = data.find(e => e.entity_id === `sensor.${sensorId}_target_3_x_position`);
-        const t3_y = data.find(e => e.entity_id === `sensor.${sensorId}_target_3_y_position`);
+        ['t1', 't2', 't3'].forEach(tid => {
+            const idX = tid === 't1' ? `${sensorId}_t1_x_position` : `${sensorId}_${tid}_target_${tid.slice(1)}_x_position`;
+            const idY = tid === 't1' ? `${sensorId}_t1_y_position` : `${sensorId}_${tid}_target_${tid.slice(1)}_y_position`;
+            
+            const sx = data.find(e => e.entity_id === `sensor.${idX}`);
+            const sy = data.find(e => e.entity_id === `sensor.${idY}`);
 
-        updateTargetData('t1', t1_x, t1_y); updateTargetData('t2', t2_x, t2_y); updateTargetData('t3', t3_x, t3_y);
+            if (sx && sy && sx.state !== 'unavailable' && sx.state !== 'unknown' && sx.state !== 'nan') {
+                liveTargets[tid] = { x: parseFloat(sx.state), y: parseFloat(sy.state), a: true };
+            } else {
+                liveTargets[tid].a = false;
+            }
+        });
         draw();
     }
 
     function updateTargetData(key, sx, sy) {
-        if (sx && sy && sx.state !== 'unavailable' && sx.state !== 'unknown' && sx.state !== 'nan') {
+        if (sx && sy && sx.state !== 'unavailable' && sx.state !== 'unknown') {
             let valX = parseFloat(sx.state); let valY = parseFloat(sy.state);
             if (!isNaN(valX) && !isNaN(valY)) { liveTargets[key].x = valX; liveTargets[key].y = valY; liveTargets[key].a = true; return; }
         }
@@ -329,7 +334,7 @@
 
     // FIRMWARE GEN
     function generateFirmware() {
-        let yaml = `esphome:\n  name: "${config.name}"\n  friendly_name: "${config.friendly}"\n\nesp8266:\n  board: d1_mini\n\n# Enable logging\nlogger:\n  baud_rate: 0\n\n# Enable Home Assistant API\napi:\n  encryption:\n    key: !secret api_key\n\nota:\n  - platform: esphome\n    password: !secret ota_password\n\nwifi:\n  ssid: !secret wifi_ssid\n  password: !secret wifi_password\n  # Enable fallback hotspot (captive portal) in case wifi connection fails\n  ap:\n    ssid: "${config.name}-Fail"\n    password: !secret ap_wifi_password\n\ncaptive_portal:\n\nexternal_components:\n- source: github://kiam001/ESPHome-HLK-LD2450\n\nuart:\n  id: uart_bus\n  rx_pin: \n    number: GPIO3\n    mode:\n      input: true\n      pullup: true\n  tx_pin: \n    number: GPIO1\n    mode:\n      input: true\n      pullup: true\n  baud_rate: 256000\n  parity: NONE\n  stop_bits: 1\n  data_bits: 8\n\nLD2450:\n  uart_id: uart_bus\n  flip_x_axis: false\n  fast_off_detection: false\n  max_detection_tilt_angle:\n    name: "Max Tilt Angle"\n    initial_value: 90°\n  min_detection_tilt_angle:\n    name: "Min Tilt Angle"\n    initial_value: -90°\n  max_detection_distance:\n    name: "Max Distance"\n    initial_value: 6m\n  \n  restart_button:\n    name: "Restart Sensor"\n  factory_reset_button:\n    name: "Factory Reset Sensor"\n\n  tracking_mode_switch:\n    name: "Multiple Target Tracking"\n  bluetooth_switch:\n    name: "Sensor Bluetooth"\n\n  baud_rate_select:\n    name: "Sensor Baud Rate"\n\n  occupancy:\n    name: Occupancy\n  target_count:\n    name: Target Count\n\n  targets:\n    - target:\n        name: "T1"\n        id: t1\n        debug: true\n        x_position:\n            name: "x_position"\n        y_position:\n            name: "y_position"\n        speed:\n            name: "speed"\n        distance_resolution:\n            name: "distance_resolution"\n        angle:\n            name: "angle"\n        distance:\n            name: "distance"\n    - target:\n        id: t2\n        x_position:\n            name: "x_position"\n        y_position:\n            name: "y_position"\n        speed:\n            name: "speed"\n        distance_resolution:\n            name: "distance_resolution"\n        angle:\n            name: "angle"\n        distance:\n            name: "distance"\n    - target:\n        id: t3\n        x_position:\n            name: "x_position"\n        y_position:\n            name: "y_position"\n        speed:\n            name: "speed"\n        distance_resolution:\n            name: "distance_resolution"\n        angle:\n            name: "angle"\n        distance:\n            name: "distance"\n  zones:\n`;
+        let yaml = `esphome:\n  name: "${config.name}"\n  friendly_name: "${config.friendly}"\n\nesp8266:\n  board: d1_mini\n\n# Enable logging\nlogger:\n  baud_rate: 0\n\n# Enable Home Assistant API\napi:\n  encryption:\n    key: !secret api_key\n\nota:\n  - platform: esphome\n    password: !secret ota_password\n\nwifi:\n  ssid: !secret wifi_ssid\n  min_auth_mode: WPA2\n  password: !secret wifi_password\n  # Enable fallback hotspot (captive portal) in case wifi connection fails\n  ap:\n    ssid: "${config.name}-Fail"\n    password: !secret ap_wifi_password\n\ncaptive_portal:\n\nexternal_components:\n- source: github://kiam001/ESPHome-HLK-LD2450\n\nuart:\n  id: uart_bus\n  rx_pin: \n    number: GPIO3\n    mode:\n      input: true\n      pullup: true\n  tx_pin: \n    number: GPIO1\n    mode:\n      input: true\n      pullup: true\n  baud_rate: 256000\n  parity: NONE\n  stop_bits: 1\n  data_bits: 8\n\nLD2450:\n  uart_id: uart_bus\n  flip_x_axis: false\n  fast_off_detection: false\n  max_detection_tilt_angle:\n    name: "Max Tilt Angle"\n    initial_value: 90°\n  min_detection_tilt_angle:\n    name: "Min Tilt Angle"\n    initial_value: -90°\n  max_detection_distance:\n    name: "Max Distance"\n    initial_value: 6m\n  \n  restart_button:\n    name: "Restart Sensor"\n  factory_reset_button:\n    name: "Factory Reset Sensor"\n\n  tracking_mode_switch:\n    name: "Multiple Target Tracking"\n  bluetooth_switch:\n    name: "Sensor Bluetooth"\n\n  baud_rate_select:\n    name: "Sensor Baud Rate"\n\n  occupancy:\n    name: Occupancy\n  target_count:\n    name: Target Count\n\n  targets:\n    - target:\n        name: "T1"\n        id: t1\n        debug: true\n        x_position:\n            name: "x_position"\n        y_position:\n            name: "y_position"\n        speed:\n            name: "speed"\n        distance_resolution:\n            name: "distance_resolution"\n        angle:\n            name: "angle"\n        distance:\n            name: "distance"\n    - target:\n        name: "T2"\n        id: t2\n        x_position:\n            name: "target_2_x_position"\n        y_position:\n            name: "target_2_y_position"\n        speed:\n            name: "target_2_speed"\n        distance_resolution:\n            name: "target_2_distance_resolution"\n        angle:\n            name: "target_2_angle"\n        distance:\n            name: "target_2_distance"\n    - target:\n        name: "T3"\n        id: t3\n        x_position:\n            name: "target_3_x_position"\n        y_position:\n            name: "target_3_y_position"\n        speed:\n            name: "target_3_speed"\n        distance_resolution:\n            name: "target_3_distance_resolution"\n        angle:\n            name: "target_3_angle"\n        distance:\n            name: "target_3_distance"\n  zones:\n`;
         config.zones.forEach((zone) => {
             if(zone.points.length < 3) return;
             const zId = zone.name.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
@@ -376,8 +381,8 @@ entities:
 `;
         ['t1', 't2', 't3'].forEach((t, i) => {
             const colors = ['blue','red','green'];
-            const idX = t === 't1' ? `${dev}_t1_x_position` : `${dev}_target_${t.slice(1)}_x_position`;
-            const idY = t === 't1' ? `${dev}_t1_y_position` : `${dev}_target_${t.slice(1)}_y_position`;
+            const idX = t === 't1' ? `${dev}_t1_x_position` : `${dev}_${t}_target_${t.slice(1)}_x_position`;
+            const idY = t === 't1' ? `${dev}_t1_y_position` : `${dev}_${t}_target_${t.slice(1)}_y_position`;
             yaml += `  - entity: ""\n    name: Target ${i+1}\n    mode: markers\n    marker: { size: 18, color: ${colors[i]}, line: { color: white, width: 2 } }\n    x:\n      - >-\n        $ex parseFloat(hass.states['sensor.${idX}']?.state || 0) * 100\n    y:\n      - >-\n        $ex parseFloat(hass.states['sensor.${idY}']?.state || 0) * 100\n`;
         });
         config.zones.forEach(zone => {
@@ -391,7 +396,7 @@ entities:
         return yaml;
     }
 
-    // YAML IMPORT
+    // YAML IMPORT - Identisch zu Original
     function openYamlModal() { document.getElementById('yamlModal').style.display = 'flex'; }
     function closeYamlModal() { document.getElementById('yamlModal').style.display = 'none'; }
     function processYaml() {
@@ -418,7 +423,7 @@ entities:
         } catch(e) { alert("Fehler: " + e.message); }
     }
 
-    // UTILS
+    // UTILS - Identisch zu Original
     function exportConfig() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config)); a.download = config.name + ".json"; a.click(); }
     function importConfig(input) { const f = input.files[0]; if(!f) return; const r = new FileReader(); r.onload = e => { try { config = JSON.parse(e.target.result); activeZoneIdx = 0; renderUI(); draw(); updateAll(); } catch(err) { alert("Err: " + err); } }; r.readAsText(f); input.value = ''; }
     function copyToClip(id) { document.getElementById(id).select(); document.execCommand("copy"); }
